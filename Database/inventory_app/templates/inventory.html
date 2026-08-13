@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Inventory{% endblock %}
+{% block content %}
+<h1>Current Inventory</h1>
+<table id="inventory-table">
+    <thead>
+        <tr>
+            <th>Lot #</th>
+            <th>Type</th>
+            <th>Product</th>
+            <th>Condition</th>
+            <th>Purchase Price</th>
+            <th>Purchase Date</th>
+            <th>Purchased</th>
+            <th>Remaining</th>
+        </tr>
+    </thead>
+    <tbody id="inventory-body">
+        <tr><td colspan="8">Loading...</td></tr>
+    </tbody>
+</table>
+
+<script>
+fetch("/api/inventory")
+    .then(r => r.json())
+    .then(rows => {
+        const tbody = document.getElementById("inventory-body");
+        tbody.innerHTML = "";
+        rows.forEach(row => {
+            const tr = document.createElement("tr");
+            tr.innerHTML = `
+                <td>${row.lot_id}</td>
+                <td>${row.item_type}</td>
+                <td>${row.product_name}</td>
+                <td>${row.condition_name || "-"}</td>
+                <td>$${row.purchase_price}</td>
+                <td>${row.purchase_date}</td>
+                <td>${row.quantity_purchased}</td>
+                <td>${row.quantity_remaining}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    });
+</script>
+{% endblock %}

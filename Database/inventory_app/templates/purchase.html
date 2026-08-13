@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% block title %}Log Purchase{% endblock %}
+{% block content %}
+<h1>Log a Purchase</h1>
+
+<form id="purchase-form">
+    <label>Item Type</label>
+    <select id="item_type">
+        <option value="card">Card</option>
+        <option value="sealed_product">Sealed Product</option>
+    </select>
+
+    <label>Search Product</label>
+    <input type="text" id="product_search" placeholder="Type a name...">
+    <div class="search-results" id="search-results"></div>
+    <div id="selected-product" style="font-weight: 600;"></div>
+    <input type="hidden" id="product_id">
+
+    <label>Condition (optional)</label>
+    <select id="condition_id">
+        <option value="">-- none --</option>
+    </select>
+
+    <label>Purchase Price ($)</label>
+    <input type="number" step="0.01" id="purchase_price" required>
+
+    <label>Purchase Date</label>
+    <input type="date" id="purchase_date" required>
+
+    <label>Quantity</label>
+    <input type="number" id="quantity_purchased" value="1" min="1" required>
+
+    <button type="submit">Log Purchase</button>
+</form>
+
+<div id="status"></div>
+
+<script>
+let selectedProductId = null;
+
+// load conditions dropdown
+fetch("/api/conditions")
+    .then(r => r.json())
+    .then(conditions => {
+        const select = document.getElementById("condition_id");
+        conditions.forEach(c => {
+            const opt = document.createElement("option");
+            opt.value = c.condition_id;
+            opt.textContent = c.condition_name;
+            select.appendChild(opt);
+        });
+    });
+
+// live product search
+const searchInput = document.getElementById("product_search");
+const resultsDiv = document.getElementById("search-results");
+const selectedDiv = document.getElementById("selected-product");
+
+let searchTimeout;
+searchInput.addEventListener("input", () => {
+    clearTimeout(searchTimeout);
+    const query = searchInput.value.trim();
+    const itemType = document.getElementById("item_type").value;
+
+    if (query.length < 2) {
+        resultsDiv.innerHTML = "";
+        return;
+    }
+
+    searchTimeout = setTimeout(() => {
+        fetch(`/api/search_products?q=${encodeURIComponent(query)}&item_type=${itemType}`)
+            .then(r => r.json())
+            .then(products => {
+                resultsDiv.innerHTML = "";
+                products.forEach(p => {
+                    const div = document.createElement("div");
+                    div.className = "search-result-item";
+                    const numberPart = p.card_number ? ` #${p.card_number}` : "";
+                    const rarityPart = p.rarity_name ? ` — ${p.rarity_name}` : "";
+                    div.textContent = `${p.name}${numberPart} (${p.set_name})${rarityPart}`;
+                    div.onclick = () => {
+                        selectedProductId = p.product_id;
+                        document.getElementById("product_id").value = p.product_id;
+                        selectedDiv.textContent = `Selected: ${p.name}${numberPart} (${p.set_name})${rarityPart}`;
+                        resultsDiv.innerHTML = "";
+                        searchInput.value = "";
+                    };
+                    resultsDiv.appendChild(div);
+                });
+            });
+    }, 250);
+});
+
+// form submit
+document.getElementById("purchase-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const statusDiv = document.getElementById("status");
+
+    if (!selectedProductId) {
+        statusDiv.innerHTML = `<div class="status-msg status-error">Please select a product first.</div>`;
+        return;
+    }
+
+    const payload = {
+        item_type: document.getElementById("item_type").value,
+        product_id: selectedProductId,
+        condition_id: document.getElementById("condition_id").value || null,
+        purchase_price: document.getElementById("purchase_price").value,
+        purchase_date: document.getElementById("purchase_date").value,
+        quantity_purchased: document.getElementById("quantity_purchased").value
+    };
+
+    fetch("/api/purchase", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.error) {
+            statusDiv.innerHTML = `<div class="status-msg status-error">${data.error}</div>`;
+        } else {
+            statusDiv.innerHTML = `<div class="status-msg status-success">Purchase logged (lot #${data.lot_id})</div>`;
+            document.getElementById("purchase-form").reset();
+            selectedProductId = null;
+            selectedDiv.textContent = "";
+        }
+    });
+});
+</script>
+{% endblock %}

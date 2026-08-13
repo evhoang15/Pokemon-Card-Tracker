@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}Log Sale{% endblock %}
+{% block content %}
+<h1>Log a Sale</h1>
+
+<form id="sale-form">
+    <label>Select Lot</label>
+    <select id="lot_id" required>
+        <option value="">Loading lots...</option>
+    </select>
+    <div id="lot-details" style="font-size: 0.85em; color: #555;"></div>
+
+    <label>Quantity Sold</label>
+    <input type="number" id="quantity_sold" value="1" min="1" required>
+
+    <label>Sale Price ($) <span style="font-weight: normal;">(total, or per-unit if quantity > 1)</span></label>
+    <input type="number" step="0.01" id="sale_price" required>
+
+    <label>Sale Date</label>
+    <input type="date" id="sale_date" required>
+
+    <label>Notes (optional)</label>
+    <input type="text" id="notes" placeholder="e.g. sold at Show X">
+
+    <button type="submit">Log Sale</button>
+</form>
+
+<div id="status"></div>
+
+<script>
+let lots = [];
+
+function loadLots() {
+    fetch("/api/lots")
+        .then(r => r.json())
+        .then(data => {
+            lots = data;
+            const select = document.getElementById("lot_id");
+            select.innerHTML = `<option value="">-- select a lot --</option>`;
+            lots.forEach(lot => {
+                const opt = document.createElement("option");
+                opt.value = lot.lot_id;
+                const numberPart = lot.card_number ? ` #${lot.card_number}` : "";
+                const rarityPart = lot.rarity_name ? ` — ${lot.rarity_name}` : "";
+                opt.textContent = `#${lot.lot_id}: ${lot.product_name}${numberPart}${rarityPart} (${lot.quantity_remaining} remaining)`;
+                select.appendChild(opt);
+            });
+        });
+}
+loadLots();
+
+document.getElementById("lot_id").addEventListener("change", (e) => {
+    const lot = lots.find(l => l.lot_id == e.target.value);
+    const detailsDiv = document.getElementById("lot-details");
+    if (lot) {
+        detailsDiv.textContent = `Condition: ${lot.condition_name || "N/A"} | Bought: $${lot.purchase_price} on ${lot.purchase_date} | Remaining: ${lot.quantity_remaining}`;
+    } else {
+        detailsDiv.textContent = "";
+    }
+});
+
+document.getElementById("sale-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const statusDiv = document.getElementById("status");
+
+    const payload = {
+        lot_id: document.getElementById("lot_id").value,
+        quantity_sold: document.getElementById("quantity_sold").value,
+        sale_price: document.getElementById("sale_price").value,
+        sale_date: document.getElementById("sale_date").value,
+        notes: document.getElementById("notes").value || null
+    };
+
+    if (!payload.lot_id) {
+        statusDiv.innerHTML = `<div class="status-msg status-error">Please select a lot.</div>`;
+        return;
+    }
+
+    fetch("/api/sale", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.error) {
+            statusDiv.innerHTML = `<div class="status-msg status-error">${data.error}</div>`;
+        } else {
+            statusDiv.innerHTML = `<div class="status-msg status-success">Sale logged.</div>`;
+            document.getElementById("sale-form").reset();
+            loadLots(); // refresh remaining quantities
+        }
+    });
+});
+</script>
+{% endblock %}
