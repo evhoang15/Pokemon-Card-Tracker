@@ -4,8 +4,17 @@ from werkzeug.security import check_password_hash
 import mysql.connector
 import os 
 from datetime import timedelta
+import logging
+from logging.handlers import RotatingFileHandler
 
 app = Flask(__name__)
+if not app.debug:
+    handler = RotatingFileHandler("app_errors.log", maxBytes=1_000_000, backupCount=3)
+    handler.setLevel(logging.ERROR)
+    formatter = logging.Formatter("%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]")
+    handler.setFormatter(formatter)
+    app.logger.addHandler(handler)
+    app.logger.setLevel(logging.ERROR)
 app.secret_key = ""
 app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(minutes=30)
 
@@ -283,4 +292,4 @@ def add_no_cache_headers(response):
 
 
 if __name__ == "__main__":
-    app.run(debug=True, port=5000)
+    app.run(port=5000, host="0.0.0.0")
